@@ -4,7 +4,7 @@ import aiohttp
 
 app = FastAPI()
 
-API_BASE = "https://implies-closes-surprised-reflections.trycloudflare.com"
+API_BASE = "https://trim-republicans-alive-gregory.trycloudflare.com"
 STOP_API = API_BASE + "/stop?stopId={stop_id}"
 VEHICLE_API = API_BASE + "/vehicle?route={route}&id={dep_id}"
 
