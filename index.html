@@ -2,17 +2,60 @@
 <html lang="hu">
 <head>
 <meta charset="utf-8">
-<title>Trolibusz figyelő</title>
+<title>SZKT trolibusz kereső</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <link rel="stylesheet" href="/static/styles.css">
+
+<style>
+/* ===== MOBIL JAVÍTÁS ===== */
+@media (max-width: 768px){
+
+  header{
+    flex-direction: column;
+    gap: 10px;
+    align-items: flex-start;
+  }
+
+  nav{
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .panel{
+    width: 100%;
+    overflow-x: auto;
+  }
+
+  table{
+    min-width: 600px;
+  }
+
+  th, td{
+    font-size: 13px;
+    padding: 8px;
+    white-space: nowrap;
+  }
+
+  h2{
+    font-size: 16px;
+  }
+
+  button{
+    font-size: 14px;
+  }
+}
+</style>
 </head>
 
 <body>
 
 <header>
   <h1>🚎 Trolibusz figyelő</h1>
-  <button id="refreshBtn">Frissítés</button>
+  <div>
+    <button id="refreshBtn">Frissítés</button>
+    <button id="autoBtn">🔄 Auto: KI</button>
+  </div>
 </header>
 
 <nav>
@@ -33,7 +76,7 @@
   <th>Vonal</th>
   <th>Cél</th>
   <th>Megálló</th>
-  <th>Indulás (mp)</th>
+  <th>Indulás</th>
 </tr>
 </thead>
 <tbody id="skodaBody"></tbody>
@@ -49,7 +92,7 @@
   <th>Vonal</th>
   <th>Cél</th>
   <th>Megálló</th>
-  <th>Indulás (mp)</th>
+  <th>Indulás</th>
 </tr>
 </thead>
 <tbody id="allBody"></tbody>
@@ -81,6 +124,14 @@ function esc(s){
     .replaceAll(">","&gt;");
 }
 
+function formatDep(sec){
+  if(sec == null) return "";
+  if(sec < 0) return "most";
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return m ? `${m}p ${s}mp` : `${s}mp`;
+}
+
 function render(body,data){
   body.innerHTML="";
   for(const i of data){
@@ -90,7 +141,7 @@ function render(body,data){
         <td>${esc(i.line)}</td>
         <td>${esc(i.dest)}</td>
         <td class="mono">${esc(i.stop)}</td>
-        <td class="mono">${esc(i.dep)}</td>
+        <td class="mono">${formatDep(i.dep)}</td>
       </tr>
     `);
   }
@@ -118,10 +169,36 @@ async function refresh(){
   render(document.getElementById("allBody"), all);
 
   loadingText.classList.add("hidden");
-  panelSkoda.classList.remove("hidden");
+
+  if(document.querySelector(".tab.active").dataset.tab === "skoda"){
+    panelSkoda.classList.remove("hidden");
+  }else{
+    panelAll.classList.remove("hidden");
+  }
 }
 
 document.getElementById("refreshBtn").onclick = refresh;
+
+/* ===== AUTO FRISSÍTÉS ===== */
+let autoTimer = null;
+let autoOn = false;
+
+function toggleAuto(){
+  autoOn = !autoOn;
+  const btn = document.getElementById("autoBtn");
+
+  if(autoOn){
+    btn.textContent = "🔄 Auto: BE";
+    refresh();
+    autoTimer = setInterval(refresh, 30000);
+  }else{
+    btn.textContent = "🔄 Auto: KI";
+    clearInterval(autoTimer);
+  }
+}
+
+document.getElementById("autoBtn").onclick = toggleAuto;
+
 refresh();
 </script>
 
