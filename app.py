@@ -1,10 +1,15 @@
-from fastapi import FastAPI
-from fastapi.staticfiles import StaticFiles
 import aiohttp
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
-app = FastAPI()
+# =======================
+# BEÁLLÍTÁSOK
+# =======================
 
 API_BASE = "https://trim-republicans-alive-gregory.trycloudflare.com"
+
 STOP_API = API_BASE + "/stop?stopId={stop_id}"
 VEHICLE_API = API_BASE + "/vehicle?route={route}&id={dep_id}"
 
@@ -17,52 +22,111 @@ WATCH_STOPS = {
 
 TROLLEY_LINES = {"5","6","8","9","10","19"}
 
+# =======================
+# SEGÉD FÜGGVÉNYEK
+# =======================
+
 def is_15tr(reg):
-    return isinstance(reg, str) and reg.startswith("T") and reg[1:].isdigit() and 600 <= int(reg[1:]) <= 630
+    if not isinstance(reg, str):
+        return False
+    if not reg.startswith("T"):
+        return False
+    if not reg[1:].isdigit():
+        return False
+    return 600 <= int(reg[1:]) <= 630
 
 async def fetch_json(session, url):
     try:
-        async with session.get(url, timeout=5) as r:
-            return await r.json() if r.status == 200 else None
+        async with session.get(url, timeout=aiohttp.ClientTimeout(total=5)) as r:
+            if r.status != 200:
+                return None
+            return await r.json()
     except:
         return None
 
-async def get_data(only_skoda=False):
+# =======================
+# KÖZÖS LOGIKA
+# =======================
+
+async def get_active_trolleys(only_skoda=False):
     active = {}
+
     async with aiohttp.ClientSession() as session:
-        for stop in WATCH_STOPS:
-            data = await fetch_json(session, STOP_API.format(stop_id=stop))
-            if not isinstance(data, list):
+        for stop_id in WATCH_STOPS:
+            stop_data = await fetch_json(
+                session, STOP_API.format(stop_id=stop_id)
+            )
+
+            if not isinstance(stop_data, list):
                 continue
-            for dep in data:
+
+            for dep in stop_data:
                 if not dep.get("realTime"):
                     continue
+
                 line = str(dep.get("line"))
                 if line not in TROLLEY_LINES:
                     continue
-                veh = await fetch_json(session, VEHICLE_API.format(
-                    route=line, dep_id=dep.get("id")
-                ))
-                if not veh:
+
+                dep_id = dep.get("id")
+                if not dep_id:
                     continue
+
+                dest = dep.get("dest", "Ismeretlen")
+                dep_time = dep.get("departure", 0)
+
+                veh = await fetch_json(
+                    session,
+                    VEHICLE_API.format(route=line, dep_id=dep_id)
+                )
+
+                if not isinstance(veh, list) or not veh:
+                    continue
+
                 reg = veh[0].get("VehicleRegistrationNumber")
+                if not reg:
+                    continue
+
                 if only_skoda and not is_15tr(reg):
                     continue
-                active[reg] = {
-                    "reg": reg,
-                    "line": line,
-                    "dest": dep.get("dest"),
-                    "stop": stop,
-                    "trip_id": dep.get("id")
-                }
+
+                if reg not in active or dep_time < active[reg]["dep"]:
+                    active[reg] = {
+                        "reg": reg,
+                        "line": line,
+                        "dest": dest,
+                        "stop": stop_id,
+                        "dep": dep_time
+                    }
+
     return list(active.values())
 
+# =======================
+# FASTAPI APP
+# =======================
+
+app = FastAPI(title="Troli Web")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# statikus fájlok (CSS)
+app.mount("/static", StaticFiles(directory="."), name="static")
+
+# frontend
+@app.get("/")
+async def index():
+    return FileResponse("index.html")
+
+# API
 @app.get("/api/alltroli")
-async def alltroli():
-    return await get_data(False)
+async def api_alltroli():
+    return await get_active_trolleys(False)
 
 @app.get("/api/allskoda")
-async def allskoda():
-    return await get_data(True)
-
-app.mount("/", StaticFiles(directory="static", html=True), name="static")
+async def api_allskoda():
+    return await get_active_trolleys(True)
