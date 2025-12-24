@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="hu">
+<head>
+<meta charset="utf-8">
+<title>Trolibusz figyelő</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<style>
+:root{
+  --bg:#0b1020;
+  --panel:rgba(255,255,255,.07);
+  --line:rgba(255,255,255,.15);
+  --text:#f8fafc;
+  --muted:#cbd5f5;
+  --accent:#7dd3fc;
+  --radius:16px;
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0;
+  font-family:system-ui,-apple-system,Segoe UI,Roboto;
+  background:var(--bg);
+  color:var(--text);
+}
+
+header{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:16px 20px;
+  border-bottom:1px solid var(--line);
+  background:rgba(0,0,0,.25);
+}
+
+h1{margin:0;font-size:18px}
+button{
+  padding:8px 14px;
+  border-radius:999px;
+  border:1px solid var(--line);
+  background:var(--panel);
+  color:var(--text);
+  cursor:pointer;
+}
+
+nav{
+  display:flex;
+  gap:10px;
+  padding:14px 20px;
+}
+
+.tab.active{
+  border-color:var(--accent);
+  background:rgba(125,211,252,.25);
+}
+
+main{
+  max-width:1100px;
+  margin:auto;
+  padding:16px 20px;
+}
+
+.panel{
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  padding:14px;
+}
+
+.hidden{display:none}
+
+table{
+  width:100%;
+  border-collapse:collapse;
+  margin-top:10px;
+  min-width:700px;
+}
+
+th,td{
+  padding:10px;
+  border-bottom:1px solid var(--line);
+  text-align:left;
+  font-size:14px;
+}
+
+th{color:var(--muted);font-weight:600}
+tr:hover{background:rgba(255,255,255,.05)}
+.mono{font-family:monospace}
+
+.loading{
+  text-align:center;
+  padding:40px 10px;
+  font-size:16px;
+  color:var(--muted);
+}
+</style>
+</head>
+
+<body>
+
+<header>
+  <h1>🚎 Trolibusz figyelő</h1>
+  <button id="refreshBtn">Frissítés</button>
+</header>
+
+<nav>
+  <button class="tab active" data-tab="skoda">Aktív Škoda trolibuszok</button>
+  <button class="tab" data-tab="all">Összes aktív troli</button>
+</nav>
+
+<main>
+
+<!-- BETÖLTÉS SZÖVEG -->
+<div id="loadingText" class="loading">
+  Betöltés…
+</div>
+
+<section id="panel-skoda" class="panel hidden">
+<h2>Aktív Škoda trolibuszok</h2>
+<table>
+<thead>
+<tr>
+  <th>Rendszám</th>
+  <th>Vonal</th>
+  <th>Cél</th>
+  <th>Megálló</th>
+  <th>Trip ID</th>
+</tr>
+</thead>
+<tbody id="skodaBody"></tbody>
+</table>
+</section>
+
+<section id="panel-all" class="panel hidden">
+<h2>Összes aktív troli</h2>
+<table>
+<thead>
+<tr>
+  <th>Rendszám</th>
+  <th>Vonal</th>
+  <th>Cél</th>
+  <th>Megálló</th>
+  <th>Trip ID</th>
+</tr>
+</thead>
+<tbody id="allBody"></tbody>
+</table>
+</section>
+
+</main>
+
+<script>
+const API_BASE = "http://localhost:8080";
+
+const loadingText = document.getElementById("loadingText");
+const panelSkoda = document.getElementById("panel-skoda");
+const panelAll   = document.getElementById("panel-all");
+
+document.querySelectorAll(".tab").forEach(t=>{
+  t.onclick=()=>{
+    document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
+    t.classList.add("active");
+    panelSkoda.classList.toggle("hidden", t.dataset.tab!=="skoda");
+    panelAll.classList.toggle("hidden", t.dataset.tab!=="all");
+  };
+});
+
+function esc(s){
+  return String(s??"")
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;");
+}
+
+function render(body,data){
+  body.innerHTML="";
+  for(const i of data){
+    body.insertAdjacentHTML("beforeend",`
+      <tr>
+        <td class="mono">${esc(i.reg)}</td>
+        <td>${esc(i.line)}</td>
+        <td>${esc(i.dest)}</td>
+        <td class="mono">${esc(i.stop)}</td>
+        <td class="mono">${esc(i.trip_id)}</td>
+      </tr>
+    `);
+  }
+}
+
+async function fetchJSON(url){
+  try{
+    const r = await fetch(url,{cache:"no-store"});
+    if(!r.ok) return [];
+    return await r.json();
+  }catch{
+    return [];
+  }
+}
+
+async function refresh(){
+  loadingText.classList.remove("hidden");
+  panelSkoda.classList.add("hidden");
+  panelAll.classList.add("hidden");
+
+  const skoda = await fetchJSON(API_BASE+"/api/allskoda");
+  const all   = await fetchJSON(API_BASE+"/api/alltroli");
+
+  render(document.getElementById("skodaBody"), skoda);
+  render(document.getElementById("allBody"), all);
+
+  loadingText.classList.add("hidden");
+  panelSkoda.classList.remove("hidden");
+}
+
+document.getElementById("refreshBtn").onclick = refresh;
+refresh();
+</script>
+
+</body>
+</html>
