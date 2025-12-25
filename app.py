@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 # BEÁLLÍTÁSOK
 # =======================
 
-API_BASE = "https://trim-republicans-alive-gregory.trycloudflare.com"
+API_BASE = "https://conclude-encountered-postings-ridge.trycloudflare.com"
 
 STOP_API = API_BASE + "/stop?stopId={stop_id}"
 VEHICLE_API = API_BASE + "/vehicle?route={route}&id={dep_id}"
