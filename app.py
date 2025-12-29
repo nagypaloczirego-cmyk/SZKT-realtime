@@ -37,12 +37,29 @@ def is_15tr(reg):
 
 async def fetch_json(session, url):
     try:
-        async with session.get(url, timeout=aiohttp.ClientTimeout(total=5)) as r:
+        async with session.get(
+            url,
+            timeout=aiohttp.ClientTimeout(total=5)
+        ) as r:
             if r.status != 200:
                 return None
             return await r.json()
     except:
         return None
+
+def get_last_vehicle_reg(veh):
+    """
+    Ha az API több járművet ad vissza,
+    mindig az UTOLSÓ rendszámot használjuk.
+    """
+    if not isinstance(veh, list) or not veh:
+        return None
+
+    last = veh[-1]
+    if not isinstance(last, dict):
+        return None
+
+    return last.get("VehicleRegistrationNumber")
 
 # =======================
 # KÖZÖS LOGIKA
@@ -54,7 +71,8 @@ async def get_active_trolleys(only_skoda=False):
     async with aiohttp.ClientSession() as session:
         for stop_id in WATCH_STOPS:
             stop_data = await fetch_json(
-                session, STOP_API.format(stop_id=stop_id)
+                session,
+                STOP_API.format(stop_id=stop_id)
             )
 
             if not isinstance(stop_data, list):
@@ -80,10 +98,7 @@ async def get_active_trolleys(only_skoda=False):
                     VEHICLE_API.format(route=line, dep_id=dep_id)
                 )
 
-                if not isinstance(veh, list) or not veh:
-                    continue
-
-                reg = veh[0].get("VehicleRegistrationNumber")
+                reg = get_last_vehicle_reg(veh)
                 if not reg:
                     continue
 
@@ -114,7 +129,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# statikus fájlok (CSS)
+# statikus fájlok (CSS, JS, stb.)
 app.mount("/static", StaticFiles(directory="."), name="static")
 
 # frontend
@@ -122,7 +137,10 @@ app.mount("/static", StaticFiles(directory="."), name="static")
 async def index():
     return FileResponse("index.html")
 
-# API
+# =======================
+# API ENDPOINTOK
+# =======================
+
 @app.get("/api/alltroli")
 async def api_alltroli():
     return await get_active_trolleys(False)
